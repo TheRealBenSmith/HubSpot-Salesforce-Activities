@@ -203,7 +203,6 @@ public with sharing class CreateTaskFromActivity {
                          description,
                          activitydate,
                          status,
-                         notify_owner__c,
                          ownerid
                   from Task
                   where whoId =:l.id
