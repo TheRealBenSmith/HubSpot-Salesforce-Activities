@@ -19,40 +19,40 @@
 *
 ********************************************************************/
 public with sharing class CreateTaskFromActivity {
-	
-	/****************************************************************
-	* makeTasksFuture
-	*
-	* Takes a list of HubSpot_Activity__c ids and uses the date in the
-	* activities and the related HubSpot_Intelligence__c records to 
-	* create standard Salesforce.com Tasks attached to Leads or Contacts
-	* (@future is defined to allow other HubSpot processing to complete
-	* before attempting to create the records so that all necessary
-	* data will be present at the time of execution when executing from
-	* the trigger)
-	*
-	* @param List<Id> hsActIds: The list of ids of the HubSpot Activities
-	*        being created
-	*
-	****************************************************************/
-	@future
+    
+    /****************************************************************
+    * makeTasksFuture
+    *
+    * Takes a list of HubSpot_Activity__c ids and uses the date in the
+    * activities and the related HubSpot_Intelligence__c records to 
+    * create standard Salesforce.com Tasks attached to Leads or Contacts
+    * (@future is defined to allow other HubSpot processing to complete
+    * before attempting to create the records so that all necessary
+    * data will be present at the time of execution when executing from
+    * the trigger)
+    *
+    * @param List<Id> hsActIds: The list of ids of the HubSpot Activities
+    *        being created
+    *
+    ****************************************************************/
+    @future
     public Static Void makeTasksFuture(List<Id> hsActIds) {
-    	makeTasks(hsActIds);
+        makeTasks(hsActIds);
     }
     
-	/****************************************************************
-	* makeTasks
-	*
-	* Takes a list of HubSpot_Activity__c ids and uses the date in the
-	* activities and the related HubSpot_Intelligence__c records to 
-	* create standard Salesforce.com Tasks attached to Leads or Contacts
-	*
-	* @param List<Id> hsActIds: The list of ids of the HubSpot Activities
-	*        being created
-	*
-	****************************************************************/
+    /****************************************************************
+    * makeTasks
+    *
+    * Takes a list of HubSpot_Activity__c ids and uses the date in the
+    * activities and the related HubSpot_Intelligence__c records to 
+    * create standard Salesforce.com Tasks attached to Leads or Contacts
+    *
+    * @param List<Id> hsActIds: The list of ids of the HubSpot Activities
+    *        being created
+    *
+    ****************************************************************/
     public Static Void makeTasks(List<Id> hsActIds) {
-    	//Map to store hubspot intel id / contact or lead id mapping
+        //Map to store hubspot intel id / contact or lead id mapping
         Map<Id, Id> HubSpotIntelLeadContactIds = new Map<Id, Id>();
         
         //Lists to store lead and contact ids
@@ -69,6 +69,7 @@ public with sharing class CreateTaskFromActivity {
                                                                       HubSpot_Inc__Title__c,
                                                                       HubSpot_Inc__Activity_Date__c,
                                                                       HubSpot_Inc__Body__c,
+                                                                      HubSpot_Inc__Activity_Type__c,
                                                                       OwnerId,
                                                                       Notify_Owner__c
                                                                from HubSpot_Inc__HubSpot_Activity__c
@@ -103,23 +104,23 @@ public with sharing class CreateTaskFromActivity {
         
         //Get lead and contact owner info and store in map
         if (contactIds.size()>0) {
-        	List<Contact> contacts = [select id, 
-        	                                 ownerId
-        	                          from Contact
-        	                          where id in:contactIds];
-        	for (Contact c : contacts) {
-        		ownerIds.put(c.Id, c.OwnerId);
-        	}
+            List<Contact> contacts = [select id, 
+                                             ownerId
+                                      from Contact
+                                      where id in:contactIds];
+            for (Contact c : contacts) {
+                ownerIds.put(c.Id, c.OwnerId);
+            }
         }
         
         if (leadIds.size()>0) {
-        	List<Lead> leads = [select id, 
-        	                                 ownerId
-        	                          from Lead
-        	                          where id in:leadIds];
-        	for (Lead l : leads) {
-        		ownerIds.put(l.Id, l.OwnerId);
-        	}
+            List<Lead> leads = [select id, 
+                                             ownerId
+                                      from Lead
+                                      where id in:leadIds];
+            for (Lead l : leads) {
+                ownerIds.put(l.Id, l.OwnerId);
+            }
         }
               
         //loop through new activities and create tasks
@@ -142,8 +143,10 @@ public with sharing class CreateTaskFromActivity {
                 
                 //Add owner and notification flag to HubSpot Activity
                 hsa.OwnerId = newTask.OwnerId;
-                hsa.Notify_Owner__c = true;
-				updateHSAs.add(hsa);               
+                if (hsa.HubSpot_Inc__Activity_Type__c == 'Form Submission') {
+                    hsa.Notify_Owner__c = true;
+                }
+                updateHSAs.add(hsa);               
             }
         }
         
@@ -154,7 +157,7 @@ public with sharing class CreateTaskFromActivity {
         
         //if there are hsas to update, update them
         if (updateHSAs.size()>0) {
-        	update updateHSAs;
+            update updateHSAs;
         }
     }
     
@@ -163,54 +166,54 @@ public with sharing class CreateTaskFromActivity {
     *********************************************/ 
     @isTest(SeeAllData=true)
     public static void doTest() {
-    	//Create a test lead
-    	Lead l = new Lead();
-    	l.firstname = 'Test';
-    	l.lastname = 'Lead';
-    	l.email = 'testlead@example.com';
-    	l.company = 'Test Lead Company';
-    	insert l;
-    	
-    	l = [select id, ownerid from Lead where id =:l.id];
-    	
-    	//Create a test HubSpot Intelligence object
-    	HubSpot_Inc__HubSpot_Intelligence__c hsi = new HubSpot_Inc__HubSpot_Intelligence__c();
-    	hsi.HubSpot_Inc__guid__c = 'testguid';
-    	hsi.HubSpot_Inc__lead__c = l.id;
-    	insert hsi;
-    	
-    	//Create a test HubSpot Activity object
-    	HubSpot_Inc__HubSpot_Activity__c hsa = new HubSpot_Inc__HubSpot_Activity__c();
-    	hsa.HubSpot_Inc__Activity_Date__c = Datetime.now();
-    	hsa.HubSpot_Inc__Activity_Type__c = 'Form Submission';
-    	hsa.HubSpot_Inc__Activity_Guid__c = 'testguid';
-    	hsa.HubSpot_Inc__Body__c = 'This is the activity body';
-    	hsa.HubSpot_Inc__Title__c = 'Form Submission 12345';
-    	hsa.HubSpot_Inc__HubSpot_Intelligence__c = hsi.id;
-    	insert hsa;
-    	
-    	//Execute the code
-    	List<Id> hsaId = new List<Id>();
-    	hsaId.add(hsa.Id);
-    	CreateTaskFromActivity.makeTasks(hsaId);
-    	
-    	//Get Task object from lead
-    	Task t = [select whoId,
-    	                 subject,
-    	                 description,
-    	                 activitydate,
-    	                 status,
-    	                 notify_owner__c,
-    	                 ownerid
-    	          from Task
-    	          where whoId =:l.id
-    	          limit 1];
-    	          
-    	//Verify that Task contains same data as HubSpot Activity
-    	System.assertEquals(hsi.HubSpot_Inc__lead__c, t.whoId);
-    	System.assertEquals(hsa.HubSpot_Inc__Title__c, t.subject);
-    	System.assertEquals(hsa.HubSpot_Inc__Body__c, t.description);
-    	System.assertEquals(l.ownerId, t.ownerId);
-    	System.assertEquals('Completed', t.status);
+        //Create a test lead
+        Lead l = new Lead();
+        l.firstname = 'Test';
+        l.lastname = 'Lead';
+        l.email = 'testlead@example.com';
+        l.company = 'Test Lead Company';
+        insert l;
+        
+        l = [select id, ownerid from Lead where id =:l.id];
+        
+        //Create a test HubSpot Intelligence object
+        HubSpot_Inc__HubSpot_Intelligence__c hsi = new HubSpot_Inc__HubSpot_Intelligence__c();
+        hsi.HubSpot_Inc__guid__c = 'testguid';
+        hsi.HubSpot_Inc__lead__c = l.id;
+        insert hsi;
+        
+        //Create a test HubSpot Activity object
+        HubSpot_Inc__HubSpot_Activity__c hsa = new HubSpot_Inc__HubSpot_Activity__c();
+        hsa.HubSpot_Inc__Activity_Date__c = Datetime.now();
+        hsa.HubSpot_Inc__Activity_Type__c = 'Form Submission';
+        hsa.HubSpot_Inc__Activity_Guid__c = 'testguid';
+        hsa.HubSpot_Inc__Body__c = 'This is the activity body';
+        hsa.HubSpot_Inc__Title__c = 'Form Submission 12345';
+        hsa.HubSpot_Inc__HubSpot_Intelligence__c = hsi.id;
+        insert hsa;
+        
+        //Execute the code
+        List<Id> hsaId = new List<Id>();
+        hsaId.add(hsa.Id);
+        CreateTaskFromActivity.makeTasks(hsaId);
+        
+        //Get Task object from lead
+        Task t = [select whoId,
+                         subject,
+                         description,
+                         activitydate,
+                         status,
+                         notify_owner__c,
+                         ownerid
+                  from Task
+                  where whoId =:l.id
+                  limit 1];
+                  
+        //Verify that Task contains same data as HubSpot Activity
+        System.assertEquals(hsi.HubSpot_Inc__lead__c, t.whoId);
+        System.assertEquals(hsa.HubSpot_Inc__Title__c, t.subject);
+        System.assertEquals(hsa.HubSpot_Inc__Body__c, t.description);
+        System.assertEquals(l.ownerId, t.ownerId);
+        System.assertEquals('Completed', t.status);
     }
 }
